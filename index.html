@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Etsy Ads Tracker — PN3 & PN4</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f172a;color:#e2e8f0;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
+input[type=number]{-moz-appearance:textfield}
+input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none}
+.mi{padding:5px 6px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:5px;text-align:center;font-size:12px;font-family:monospace;outline:none;width:68px}
+.mi:focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.15)}
+.nb{padding:7px 20px;border:2px solid #334155;background:transparent;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;border-radius:8px;transition:all .2s}
+.nb.on{background:linear-gradient(135deg,#3b82f6,#7c3aed);border-color:transparent;color:#fff}
+.tb{padding:6px 14px;border:none;background:transparent;color:#475569;font-size:12px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
+.tb.on{color:#60a5fa;border-bottom-color:#60a5fa}
+.tb:hover{color:#94a3b8}
+.card{background:#1e293b;border-radius:12px;border:1px solid #334155;overflow:hidden}
+.btn{padding:5px 12px;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer}
+.rh:hover{background:rgba(59,130,246,.06)!important}
+select{padding:4px 6px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:5px;font-size:11px;outline:none}
+@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.overlay{position:fixed;inset:0;z-index:1000;display:flex;justify-content:flex-end;animation:fadeIn .2s ease}
+.overlay-bg{background:rgba(0,0,0,.5);position:absolute;inset:0}
+.drawer{position:relative;width:min(720px,95vw);height:100%;background:#0f172a;border-left:1px solid #334155;overflow-y:auto;animation:slideIn .25s ease}
+.chart-wrap{position:relative;width:100%}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+const SK="etsy-tracker-web-v1";
+const todayS=()=>new Date().toISOString().split("T")[0];
+const fd=d=>{const p=d.split("-");return p[2]+"/"+p[1]};
+const STATUSES=["Listing","Publish","Sold","Best Seller"];
+const SCLR={Listing:"#64748b",Publish:"#3b82f6",Sold:"#22c55e","Best Seller":"#f59e0b"};
+
+// ─── DATA ───────────────────────────────────────────────────────────────────
+function mkPN4(){
+const items=[
+["C1","Core","Watercolor Canvas","Pose: Tựa đầu – Trái","E55iXDOe"],
+["C2","Core","Watercolor Canvas","Pose: Tựa đầu – Phải","w76fpEmB"],
+["S2.1","Support","Watercolor Canvas","Pose: Tựa đầu – Phải","UTTDEGdL"],
+["C3","Core","Watercolor Canvas","Pose: Ôm ngồi","00N3JLzT"],
+["C4","Core","Watercolor Canvas","Pose: Ôm đứng","IP4CdRp7"],
+["C5","Core","Watercolor Canvas","Pose: Thơm má – Trái","XVrOWAe3"],
+["C6","Core","Watercolor Canvas","Pose: Thơm má – Phải","sSfPLPpk"],
+["C7","Core","Watercolor Canvas","Pose: Mẹ bế cao","M0WhlrlJ"],
+["S7.1","Support","Watercolor Canvas","Pose: Mẹ bế cao","w5i2IKLm"],
+["C8","Core","Watercolor Canvas","Pose: Bế trên vai","aVgc9P8P"],
+["C9","Core","Watercolor Canvas","Pose: Bế trong lòng","TL0ncuDR"],
+["C10","Core","Watercolor Canvas","Hand-Drawn","7kJBXZ85"],
+["C11","Core","Watercolor Canvas","Digital Drawing","qL7XrsK8"],
+["C12","Core","Watercolor Canvas","Ngang – 3/4","sLOGBdct"],
+["C13","Core","Watercolor Canvas","Ngang – Khung","ChOhf0Mc"],
+["C14","Core","Watercolor Canvas","Ngang – Quote","xu5XeU22"],
+["S15","Support","Watercolor Canvas","Ngang – Happy","MTP8HAQ0"],
+["C16","Core","Star Map","Stars Aligned","VyW2lt7C"],
+["C17","Core","Star Map","Under These Stars","Z1KmMnCh"],
+["C18","Core","Star Map","Under This Sky","6ESxRAS2"],
+["C19","Core","Star Map","Mix Map x Pic","aRl0U9ix"],
+["C20","Core","Star Map","Heart Shape","mZQKnPib"],
+["C21","Core","Star Map","Classic Round","zlgAYBHt"],
+["C21b","Core","Moon Phase","Single Moon","3lefBEPK"],
+["C22","Core","Moon Phase","Quote: Days","WWMwjjyG"]
+];
+return items.map(([code,type,product,style,sku])=>({id:code,code,type,product,style,sku,status:"Listing",link:"",thumb:""}));
+}
+function mkPN3(){
+return["C1","C2","C3","S3.1","C4"].map(code=>({id:code+"_pn3",code,type:code.startsWith("S")?"Support":"Core",product:"",style:"",sku:"",status:"Listing",link:"",thumb:""}));
+}
+function getSig(v,cl,o,r,s){
+const ctr=v>0?cl/v:0,roas=s>0?r/s:0;
+if(!v&&!cl)return{i:"⏳",t:"Chưa có data",c:"#475569"};
+if(v>30&&!cl)return{i:"🔴",t:"0 click → Đổi thumbnail",c:"#ef4444"};
+if(v<50&&ctr<.01)return{i:"🔴",t:"Views+CTR thấp → SEO",c:"#ef4444"};
+if(v>100&&ctr<.015)return{i:"🟡",t:"CTR thấp → A/B thumb",c:"#eab308"};
+if(ctr>.02&&!o)return{i:"🟡",t:"CTR ok, 0 đơn → Fix page",c:"#eab308"};
+if(o&&roas<1)return{i:"🟠",t:"ROAS "+roas.toFixed(1)+" → Giảm bid",c:"#f97316"};
+if(o&&roas<2)return{i:"🟢",t:"ROAS "+roas.toFixed(1)+" → Ổn",c:"#22c55e"};
+if(o&&roas>=2)return{i:"💎",t:"ROAS "+roas.toFixed(1)+" → Scale!",c:"#a855f7"};
+if(cl&&!o)return{i:"🟡",t:"Có click, chưa đơn",c:"#eab308"};
+return{i:"📊",t:"Thu thập data",c:"#475569"};
+}
+function loadData(){try{const d=localStorage.getItem(SK);return d?JSON.parse(d):null;}catch(e){return null;}}
+function saveData(d){try{localStorage.setItem(SK,JSON.stringify(d));}catch(e){}}
+
+// ─── STATE ──────────────────────────────────────────────────────────────────
+let state={
+  data:null, nick:"PN4", tab:"daily", selDate:todayS(),
+  detailId:null, addOpen:false, nf:{code:"",type:"Core",product:"",style:""}
+};
+const charts={};
+
+function setState(patch){Object.assign(state,patch);render();}
+
+// ─── CHART HELPERS ──────────────────────────────────────────────────────────
+const chartDefaults={
+  color:"#94a3b8",
+  grid:{color:"rgba(30,41,59,.8)"},
+  tooltip:{backgroundColor:"#1e293b",borderColor:"#334155",borderWidth:1,titleColor:"#94a3b8",bodyColor:"#e2e8f0",padding:8}
+};
+function mkChart(id,type,labels,datasets,opts={}){
+  const el=document.getElementById(id);
+  if(!el)return;
+  if(charts[id]){charts[id].destroy();delete charts[id];}
+  charts[id]=new Chart(el,{
+    type,
+    data:{labels,datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:"#64748b",font:{size:10}}},tooltip:chartDefaults.tooltip,...(opts.plugins||{})},
+      scales:{x:{ticks:{color:"#64748b",font:{size:10}},grid:{color:"rgba(51,65,85,.4)"}},y:{ticks:{color:"#64748b",font:{size:10}},grid:{color:"rgba(51,65,85,.4)"},...(opts.y||{})},y1:opts.y1?{...opts.y1,ticks:{color:"#64748b",font:{size:10}},grid:{display:false}}:undefined},
+      animation:{duration:400},
+      ...opts.extra
+    }
+  });
+}
+
+// ─── RENDER ─────────────────────────────────────────────────────────────────
+function render(){
+  const {data,nick,tab,selDate,detailId,addOpen,nf}=state;
+  if(!data){document.getElementById("app").innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#64748b">Đang tải...</div>';return;}
+  const listings=data[nick].listings;
+  const daily=data[nick].daily;
+
+  // KPIs
+  let tv=0,tc=0,to=0,tr=0,ts=0;
+  listings.forEach(l=>{const d=daily[selDate]&&daily[selDate][l.id];if(d){tv+=d.views||0;tc+=d.clicks||0;to+=d.orders||0;tr+=d.revenue||0;ts+=d.spend||0;}});
+  const dayTotal={views:tv,clicks:tc,ctr:tv>0?tc/tv*100:0,orders:to,revenue:tr,spend:ts,roas:ts>0?tr/ts:0};
+
+  // Chart data
+  const oChart=Object.keys(daily).sort().map(d=>{
+    let v=0,c=0,o=0,r=0,s=0;
+    listings.forEach(l=>{const m=daily[d]&&daily[d][l.id];if(m){v+=m.views||0;c+=m.clicks||0;o+=m.orders||0;r+=m.revenue||0;s+=m.spend||0;}});
+    return{date:fd(d),views:v,clicks:c,ctr:v>0?c/v*100:0,orders:o,revenue:r,spend:s,roas:s>0?r/s:0};
+  });
+
+  const kpis=[
+    ["Views",dayTotal.views,"#60a5fa"],
+    ["Clicks",dayTotal.clicks,"#a78bfa"],
+    ["CTR",dayTotal.ctr.toFixed(2)+"%",dayTotal.ctr>1.5?"#34d399":"#eab308"],
+    ["Orders",dayTotal.orders,"#f472b6"],
+    ["Revenue","$"+dayTotal.revenue.toFixed(2),"#34d399"],
+    ["Spend","$"+dayTotal.spend.toFixed(2),"#fb923c"],
+    ["ROAS",dayTotal.roas.toFixed(2),dayTotal.roas>=2?"#a855f7":dayTotal.roas>=1?"#34d399":"#ef4444"]
+  ];
+
+  const TH=["","Code","Type","Product","Style","Views","Clicks","CTR","Orders","Revenue $","Spend $","ROAS","Signal"];
+
+  // Detail listing
+  const detailL=detailId?listings.find(l=>l.id===detailId):null;
+  let detailDates=[];
+  let detailTot={v:0,c:0,o:0,r:0,s:0};
+  let detailChartData=[];
+  if(detailL){
+    detailDates=Object.keys(daily).sort();
+    detailChartData=[];
+    for(let dd of detailDates){
+      const m=(daily[dd]&&daily[dd][detailL.id])||{};
+      const v=m.views||0,cl=m.clicks||0,o=m.orders||0,r=m.revenue||0,s=m.spend||0;
+      if(v||cl||o||r||s){
+        detailTot.v+=v;detailTot.c+=cl;detailTot.o+=o;detailTot.r+=r;detailTot.s+=s;
+        detailChartData.push({date:fd(dd),views:v,clicks:cl,ctr:v>0?cl/v*100:0,orders:o,revenue:r,spend:s,roas:s>0?r/s:0});
+      }
+    }
+  }
+  const tCtr=detailTot.v>0?detailTot.c/detailTot.v*100:0;
+  const tRoas=detailTot.s>0?detailTot.r/detailTot.s:0;
+
+  document.getElementById("app").innerHTML=`
+  ${detailL?`
+  <div class="overlay" id="overlay">
+    <div class="overlay-bg" onclick="closeDetail()"></div>
+    <div class="drawer">
+      <div style="position:sticky;top:0;z-index:10;background:#0f172a;padding:16px 20px;border-bottom:1px solid #334155">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="display:flex;gap:10;align-items:center">
+            ${detailL.thumb?`<img src="${detailL.thumb}" style="width:48px;height:48px;border-radius:8px;object-fit:cover">`:`<div style="width:48px;height:48px;border-radius:8px;background:#1e293b;display:flex;align-items:center;justify-content:center;color:#475569;font-size:10px">No img</div>`}
+            <div style="margin-left:10px">
+              <div style="display:flex;gap:6px;align-items:center">
+                <span style="font-family:monospace;font-weight:700;font-size:18px">${detailL.code}</span>
+                <span style="padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;background:${detailL.type==="Core"?"rgba(59,130,246,.15)":"rgba(52,211,153,.15)"};color:${detailL.type==="Core"?"#60a5fa":"#34d399"}">${detailL.type}</span>
+              </div>
+              <div style="color:#94a3b8;font-size:11px;margin-top:2px">${detailL.product} · ${detailL.style}</div>
+            </div>
+          </div>
+          <button onclick="closeDetail()" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;width:32px;height:32px;border-radius:6px;cursor:pointer;font-size:16px">✕</button>
+        </div>
+        <div style="display:flex;gap:5px;margin-top:12px;flex-wrap:wrap">
+          ${[["Views",detailTot.v,"#60a5fa"],["Clicks",detailTot.c,"#a78bfa"],["CTR",tCtr.toFixed(2)+"%","#34d399"],["Orders",detailTot.o,"#f472b6"],["Revenue","$"+detailTot.r.toFixed(2),"#34d399"],["Spend","$"+detailTot.s.toFixed(2),"#fb923c"],["ROAS",tRoas.toFixed(2),tRoas>=2?"#a855f7":"#22c55e"]].map(([l,v,c])=>`
+          <div style="background:#1e293b;border:1px solid #334155;border-radius:7px;padding:6px 10px;flex:1;min-width:75px">
+            <div style="font-size:8px;color:#64748b;text-transform:uppercase">${l}</div>
+            <div style="font-family:monospace;font-size:15px;font-weight:700;color:${c}">${v}</div>
+          </div>`).join("")}
+        </div>
+      </div>
+      <div style="padding:16px 20px">
+        ${detailChartData.length===0?`<div style="text-align:center;padding:40px;color:#475569">Chưa có data cho listing này.</div>`:`
+        <h4 style="font-size:12px;color:#94a3b8;margin-bottom:8px">Views & Clicks</h4>
+        <div class="chart-wrap" style="height:180px"><canvas id="dc1"></canvas></div>
+        <h4 style="font-size:12px;color:#94a3b8;margin:16px 0 8px">CTR & ROAS</h4>
+        <div class="chart-wrap" style="height:160px"><canvas id="dc2"></canvas></div>
+        <h4 style="font-size:12px;color:#94a3b8;margin:16px 0 8px">Revenue vs Spend</h4>
+        <div class="chart-wrap" style="height:170px"><canvas id="dc3"></canvas></div>
+        <h4 style="font-size:12px;color:#94a3b8;margin:16px 0 8px">Orders</h4>
+        <div class="chart-wrap" style="height:130px"><canvas id="dc4"></canvas></div>
+        `}
+      </div>
+    </div>
+  </div>`:""}
+
+  <div style="background:#0f172a;border-bottom:1px solid #334155;padding:12px 18px">
+    <div style="max-width:1400px;margin:0 auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h1 style="font-size:18px;font-weight:700;color:#60a5fa">Etsy Ads Tracker</h1>
+        <div style="display:flex;gap:6px">
+          ${["PN4","PN3"].map(n=>`<button class="nb ${nick===n?"on":""}" onclick="setNick('${n}')">${n}</button>`).join("")}
+          <button class="btn" style="background:#334155;color:#94a3b8;margin-left:4px" onclick="expCSV()">⬇ CSV</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:2px;margin-top:10px">
+        ${[["daily","📝 Nhập liệu"],["charts","📈 Tổng quan"],["strategy","🎯 Chiến thuật"]].map(([k,l])=>`<button class="tb ${tab===k?"on":""}" onclick="setTab('${k}')">${l}</button>`).join("")}
+      </div>
+    </div>
+  </div>
+
+  <div style="max-width:1400px;margin:0 auto;padding:14px 18px">
+
+    ${tab==="daily"?`
+    <div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:stretch">
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:10px;padding:10px 14px">
+          <div style="font-size:9px;color:#64748b;font-weight:600">NGÀY</div>
+          <input type="date" value="${selDate}" onchange="setSelDate(this.value)" style="padding:6px 8px;background:#0f172a;border:2px solid #3b82f6;color:#e2e8f0;border-radius:6px;font-size:13px;font-family:monospace;outline:none">
+        </div>
+        ${kpis.map(([l,v,c])=>`
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:10px;padding:10px 14px;flex:1;min-width:95px">
+          <div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px">${l}</div>
+          <div style="font-family:monospace;font-size:19px;font-weight:700;color:${c}">${v}</div>
+        </div>`).join("")}
+      </div>
+
+      <div class="card">
+        <div style="padding:8px 14px;border-bottom:1px solid #334155;font-size:11px;color:#64748b">
+          Click hàng = xem chart · Ô nhập = <span style="color:#60a5fa">xanh</span> · Ô tự tính = <span style="color:#2dd4bf">xanh lá</span>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead>
+              <tr style="background:#0f172a">
+                ${TH.map(h=>{
+                  const auto=h==="CTR"||h==="ROAS";
+                  return `<th style="padding:8px 4px;text-align:center;color:${auto?"#2dd4bf":"#475569"};font-weight:600;font-size:9px;text-transform:uppercase;border-bottom:1px solid #334155;background:${auto?"rgba(52,211,153,.04)":"#0f172a"};white-space:nowrap">${h}</th>`;
+                }).join("")}
+              </tr>
+            </thead>
+            <tbody>
+              ${listings.map((l,idx)=>{
+                const m=(daily[selDate]&&daily[selDate][l.id])||{};
+                const v=m.views||0,cl=m.clicks||0,o=m.orders||0,r=m.revenue||0,s=m.spend||0;
+                const ctr=v>0?cl/v*100:0,roas=s>0?r/s:0;
+                const sg=getSig(v,cl,o,r,s);
+                const bg=idx%2?"rgba(30,41,59,.3)":"transparent";
+                const thumbHtml=l.thumb?`<img src="${l.thumb}" style="width:38px;height:38px;border-radius:5px;object-fit:cover;display:block">`:`<label style="cursor:pointer;display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:5px;background:#1e293b;border:1px dashed #475569;color:#475569;font-size:14px;position:relative">+<input type="file" accept="image/*" onchange="setThumb('${l.id}',this)" style="position:absolute;opacity:0;width:100%;height:100%;cursor:pointer"></label>`;
+                return `<tr class="rh" style="border-bottom:1px solid #1e293b;background:${bg};cursor:pointer" onclick="rowClick(event,'${l.id}')">
+                  <td style="padding:3px 4px;width:46px" onclick="event.stopPropagation()">${thumbHtml}</td>
+                  <td style="padding:4px;text-align:center;font-weight:700;font-family:monospace;font-size:12px">${l.code}</td>
+                  <td style="padding:4px;text-align:center"><span style="padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;background:${l.type==="Core"?"rgba(59,130,246,.12)":"rgba(52,211,153,.12)"};color:${l.type==="Core"?"#60a5fa":"#34d399"}">${l.type}</span></td>
+                  <td style="padding:4px;font-size:11px;color:#94a3b8;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.product}</td>
+                  <td style="padding:4px;font-size:10px;color:#64748b;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.style}</td>
+                  <td style="padding:2px 3px;text-align:center" onclick="event.stopPropagation()"><input class="mi" type="number" min="0" step="1" value="${m.views||""}" placeholder="0" onchange="setM('${selDate}','${l.id}','views',this.value)"></td>
+                  <td style="padding:2px 3px;text-align:center" onclick="event.stopPropagation()"><input class="mi" type="number" min="0" step="1" value="${m.clicks||""}" placeholder="0" onchange="setM('${selDate}','${l.id}','clicks',this.value)"></td>
+                  <td style="padding:4px;text-align:center;font-family:monospace;font-weight:700;font-size:11px;color:${ctr>1.5?"#34d399":ctr>0?"#94a3b8":"#334155"};background:rgba(52,211,153,.03)">${ctr.toFixed(2)}%</td>
+                  <td style="padding:2px 3px;text-align:center" onclick="event.stopPropagation()"><input class="mi" type="number" min="0" step="1" value="${m.orders||""}" placeholder="0" onchange="setM('${selDate}','${l.id}','orders',this.value)"></td>
+                  <td style="padding:2px 3px;text-align:center" onclick="event.stopPropagation()"><input class="mi" type="number" min="0" step="0.01" style="width:76px" value="${m.revenue||""}" placeholder="0" onchange="setM('${selDate}','${l.id}','revenue',this.value)"></td>
+                  <td style="padding:2px 3px;text-align:center" onclick="event.stopPropagation()"><input class="mi" type="number" min="0" step="0.01" style="width:76px" value="${m.spend||""}" placeholder="0" onchange="setM('${selDate}','${l.id}','spend',this.value)"></td>
+                  <td style="padding:4px;text-align:center;font-family:monospace;font-weight:700;font-size:12px;color:${roas>=2?"#a855f7":roas>=1?"#34d399":roas>0?"#ef4444":"#334155"};background:rgba(52,211,153,.03)">${roas.toFixed(2)}</td>
+                  <td style="padding:3px 4px"><div style="display:flex;align-items:center;gap:3px;background:${sg.c}10;padding:3px 6px;border-radius:5px;border-left:3px solid ${sg.c}"><span style="font-size:12px">${sg.i}</span><span style="color:${sg.c};font-size:10px;white-space:nowrap">${sg.t}</span></div></td>
+                </tr>`;
+              }).join("")}
+              <tr>
+                <td colspan="13" style="padding:0">
+                  ${!addOpen?`
+                  <button onclick="setAddOpen(true)" style="width:100%;padding:10px;background:transparent;border:1px dashed #334155;color:#475569;cursor:pointer;font-size:12px;font-weight:600">+  Thêm listing mới</button>
+                  `:`
+                  <div style="display:flex;gap:6px;padding:8px 12px;align-items:center;background:rgba(59,130,246,.03);flex-wrap:wrap">
+                    <input class="mi" style="width:55px" placeholder="Code" id="nf-code" value="${nf.code}" oninput="updateNf('code',this.value)">
+                    <select id="nf-type" onchange="updateNf('type',this.value)"><option ${nf.type==="Core"?"selected":""}>Core</option><option ${nf.type==="Support"?"selected":""}>Support</option></select>
+                    <input class="mi" style="width:110px" placeholder="Product" id="nf-product" value="${nf.product}" oninput="updateNf('product',this.value)">
+                    <input class="mi" style="width:120px" placeholder="Style" id="nf-style" value="${nf.style}" oninput="updateNf('style',this.value)">
+                    <button class="btn" style="background:#3b82f6;color:#fff" onclick="addL()">Thêm</button>
+                    <button class="btn" style="background:transparent;border:1px solid #475569;color:#94a3b8" onclick="setAddOpen(false)">Hủy</button>
+                  </div>`}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:10px;color:#475569">Trạng thái:</span>
+        ${listings.map(l=>`
+        <div style="display:flex;align-items:center;gap:3px;background:#1e293b;border:1px solid #334155;border-radius:5px;padding:2px 3px 2px 6px;font-size:10px">
+          <span style="font-weight:600;color:${l.type==="Core"?"#60a5fa":"#34d399"}">${l.code}</span>
+          <select style="font-size:9px;padding:1px 2px;background:transparent;border:none;color:${SCLR[l.status]};font-weight:600" onchange="setLF('${l.id}','status',this.value)">
+            ${STATUSES.map(s=>`<option value="${s}" ${l.status===s?"selected":""}>${s}</option>`).join("")}
+          </select>
+          <button onclick="rmL('${l.id}')" style="background:none;border:none;color:#475569;cursor:pointer;font-size:10px;padding:0 2px">✕</button>
+        </div>`).join("")}
+      </div>
+    </div>
+    `:""}
+
+    ${tab==="charts"?`
+    <div style="display:flex;flex-direction:column;gap:14px">
+      ${oChart.length===0?`<div class="card" style="padding:50px;text-align:center;color:#475569">Chưa có data.</div>`:`
+      <div class="card" style="padding:14px">
+        <h3 style="font-size:12px;font-weight:600;margin-bottom:10px;color:#94a3b8">Views & Clicks</h3>
+        <div class="chart-wrap" style="height:220px"><canvas id="ch1"></canvas></div>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap">
+        <div class="card" style="padding:14px;flex:1;min-width:260px">
+          <h3 style="font-size:12px;font-weight:600;margin-bottom:10px;color:#94a3b8">CTR = Clicks / Views</h3>
+          <div class="chart-wrap" style="height:170px"><canvas id="ch2"></canvas></div>
+        </div>
+        <div class="card" style="padding:14px;flex:1;min-width:260px">
+          <h3 style="font-size:12px;font-weight:600;margin-bottom:10px;color:#94a3b8">ROAS = Revenue / Spend</h3>
+          <div class="chart-wrap" style="height:170px"><canvas id="ch3"></canvas></div>
+        </div>
+      </div>
+      <div class="card" style="padding:14px">
+        <h3 style="font-size:12px;font-weight:600;margin-bottom:10px;color:#94a3b8">Revenue vs Spend</h3>
+        <div class="chart-wrap" style="height:200px"><canvas id="ch4"></canvas></div>
+      </div>
+      `}
+    </div>
+    `:""}
+
+    ${tab==="strategy"?`
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="card" style="padding:16px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Bảng chiến thuật</h3>
+        ${[["🔴","Views+CTR thấp","Views<50, CTR<1%","Check SEO → Đổi thumbnail → Tăng bid. 3 ngày → pause.","#ef4444"],
+           ["🟡","Views cao, CTR thấp","Views>100, CTR<1.5%","A/B test thumbnail → Chỉnh title → Check giá.","#eab308"],
+           ["🟡","CTR cao, 0 đơn","CTR>2%, 0 order","Check giá → Ảnh+mô tả → Review → Processing time.","#eab308"],
+           ["🟠","Có đơn, ROAS<1","ROAS<1.0","Giảm bid 10-15% → Tăng giá → Dồn budget winner.","#f97316"],
+           ["🟢","ROAS 1-2","Hòa vốn","Giữ bid → Optimize → Monitor. ROAS 1.5+ = ổn.","#22c55e"],
+           ["💎","ROAS>2 Winner","Convert tốt","Tăng budget → Support listing → Scale. >3 = hero.","#a855f7"],
+           ["⚪","0 click","30+ views, 0 click","Redesign thumbnail → Check giá → 2 ngày → pause.","#94a3b8"]
+        ].map(([icon,title,cond,action,color])=>`
+        <div style="display:flex;gap:10px;padding:10px 12px;border-radius:8px;background:${color}08;border-left:3px solid ${color};margin-bottom:4px">
+          <span style="font-size:18px">${icon}</span>
+          <div>
+            <div style="font-weight:700;font-size:12px;color:${color}">${title} <span style="font-weight:400;font-size:10px;color:#64748b">— ${cond}</span></div>
+            <div style="font-size:11px;color:#cbd5e1;margin-top:2px">${action}</div>
+          </div>
+        </div>`).join("")}
+      </div>
+      <div class="card" style="padding:16px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Benchmark POD</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">
+          ${[["CTR","< 0.5%","0.5-1.5%","> 1.5%"],["ROAS","< 1.0","1.0-2.5","> 2.5"],["CPC","> $0.80","$0.40-0.80","< $0.40"],["Views/ngày","< 20","20-100","> 100"]].map(([m,b,o,g])=>`
+          <div style="background:#0f172a;border-radius:7px;padding:10px;border:1px solid #1e293b">
+            <div style="font-weight:700;font-size:11px;margin-bottom:6px">${m}</div>
+            <div style="display:flex;gap:3px">
+              <span style="background:rgba(239,68,68,.1);color:#f87171;padding:2px 5px;border-radius:4px;font-size:9px;font-weight:600">${b}</span>
+              <span style="background:rgba(251,191,36,.1);color:#fbbf24;padding:2px 5px;border-radius:4px;font-size:9px;font-weight:600">${o}</span>
+              <span style="background:rgba(52,211,153,.1);color:#34d399;padding:2px 5px;border-radius:4px;font-size:9px;font-weight:600">${g}</span>
+            </div>
+          </div>`).join("")}
+        </div>
+      </div>
+    </div>
+    `:""}
+  </div>
+  `;
+
+  // Draw charts after DOM update
+  if(tab==="charts"&&oChart.length>0){
+    const labels=oChart.map(d=>d.date);
+    setTimeout(()=>{
+      mkChart("ch1","bar",labels,[
+        {label:"Views",data:oChart.map(d=>d.views),backgroundColor:"rgba(96,165,250,.2)",borderColor:"#60a5fa",borderWidth:2,type:"line",fill:true,tension:.4,yAxisID:"y"},
+        {label:"Clicks",data:oChart.map(d=>d.clicks),backgroundColor:"rgba(167,139,250,.7)",borderColor:"#a78bfa",borderWidth:0,borderRadius:3,yAxisID:"y1",barThickness:14}
+      ],{y1:{position:"right",display:true}});
+      mkChart("ch2","line",labels,[
+        {label:"CTR %",data:oChart.map(d=>d.ctr),borderColor:"#34d399",backgroundColor:"rgba(52,211,153,.08)",borderWidth:2.5,fill:true,tension:.4,pointRadius:3}
+      ]);
+      mkChart("ch3","line",labels,[
+        {label:"ROAS",data:oChart.map(d=>d.roas),borderColor:"#a855f7",backgroundColor:"rgba(168,85,247,.08)",borderWidth:2.5,fill:true,tension:.4,pointRadius:3}
+      ]);
+      mkChart("ch4","bar",labels,[
+        {label:"Revenue",data:oChart.map(d=>d.revenue),backgroundColor:"rgba(52,211,153,.7)",borderRadius:3,barThickness:14},
+        {label:"Spend",data:oChart.map(d=>d.spend),backgroundColor:"rgba(248,113,113,.7)",borderRadius:3,barThickness:14}
+      ]);
+    },0);
+  }
+
+  // Detail charts
+  if(detailL&&detailChartData.length>0){
+    const dl=detailChartData.map(d=>d.date);
+    setTimeout(()=>{
+      mkChart("dc1","bar",dl,[
+        {label:"Views",data:detailChartData.map(d=>d.views),backgroundColor:"rgba(96,165,250,.2)",borderColor:"#60a5fa",borderWidth:2,type:"line",fill:true,tension:.4,yAxisID:"y"},
+        {label:"Clicks",data:detailChartData.map(d=>d.clicks),backgroundColor:"rgba(167,139,250,.7)",borderRadius:3,yAxisID:"y1",barThickness:12}
+      ],{y1:{position:"right",display:true}});
+      mkChart("dc2","line",dl,[
+        {label:"CTR %",data:detailChartData.map(d=>d.ctr),borderColor:"#34d399",borderWidth:2,tension:.4,pointRadius:3,yAxisID:"y"},
+        {label:"ROAS",data:detailChartData.map(d=>d.roas),borderColor:"#a855f7",borderWidth:2,tension:.4,pointRadius:3,yAxisID:"y1"}
+      ],{y1:{position:"right",display:true}});
+      mkChart("dc3","bar",dl,[
+        {label:"Revenue",data:detailChartData.map(d=>d.revenue),backgroundColor:"rgba(52,211,153,.7)",borderRadius:3,barThickness:12},
+        {label:"Spend",data:detailChartData.map(d=>d.spend),backgroundColor:"rgba(248,113,113,.7)",borderRadius:3,barThickness:12}
+      ]);
+      mkChart("dc4","bar",dl,[
+        {label:"Orders",data:detailChartData.map(d=>d.orders),backgroundColor:"rgba(244,114,182,.7)",borderRadius:4,barThickness:18}
+      ]);
+    },0);
+  }
+}
+
+// ─── ACTIONS ────────────────────────────────────────────────────────────────
+function setNick(n){setState({nick:n});}
+function setTab(t){setState({tab:t});}
+function setSelDate(v){setState({selDate:v});}
+function setAddOpen(v){setState({addOpen:v});}
+function closeDetail(){setState({detailId:null});}
+function updateNf(k,v){state.nf[k]=v;}
+
+function rowClick(ev,id){
+  if(["INPUT","SELECT","LABEL","BUTTON"].includes(ev.target.tagName))return;
+  setState({detailId:id});
+}
+
+function setM(date,lid,field,val){
+  const nd=JSON.parse(JSON.stringify(state.data));
+  if(!nd[state.nick].daily[date])nd[state.nick].daily[date]={};
+  if(!nd[state.nick].daily[date][lid])nd[state.nick].daily[date][lid]={views:0,clicks:0,orders:0,revenue:0,spend:0};
+  nd[state.nick].daily[date][lid][field]=parseFloat(val)||0;
+  saveData(nd);state.data=nd;render();
+}
+
+function setLF(lid,field,val){
+  const nd=JSON.parse(JSON.stringify(state.data));
+  const i=nd[state.nick].listings.findIndex(l=>l.id===lid);
+  if(i>=0){nd[state.nick].listings[i][field]=val;saveData(nd);state.data=nd;render();}
+}
+
+function setThumb(lid,input){
+  const f=input.files&&input.files[0];
+  if(!f)return;
+  const r=new FileReader();
+  r.onload=x=>setLF(lid,"thumb",x.target.result);
+  r.readAsDataURL(f);
+}
+
+function addL(){
+  if(!state.nf.code)return;
+  const nd=JSON.parse(JSON.stringify(state.data));
+  nd[state.nick].listings.push({...state.nf,id:state.nf.code+"_"+Date.now(),sku:"",status:"Listing",link:"",thumb:""});
+  saveData(nd);state.data=nd;state.nf={code:"",type:"Core",product:"",style:""};state.addOpen=false;render();
+}
+
+function rmL(id){
+  if(!confirm("Xóa listing này?"))return;
+  const nd=JSON.parse(JSON.stringify(state.data));
+  nd[state.nick].listings=nd[state.nick].listings.filter(l=>l.id!==id);
+  saveData(nd);state.data=nd;render();
+}
+
+function expCSV(){
+  const{data,nick}=state;
+  const listings=data[nick].listings,daily=data[nick].daily;
+  const dd=Object.keys(daily).sort();
+  let csv="Date,Code,Type,Product,Views,Clicks,CTR,Orders,Revenue,Spend,ROAS\n";
+  dd.forEach(d=>listings.forEach(l=>{const m=(daily[d]&&daily[d][l.id])||{};const v=m.views||0,cl=m.clicks||0,o=m.orders||0,r=m.revenue||0,s=m.spend||0;csv+=[d,l.code,l.type,l.product,v,cl,v>0?(cl/v*100).toFixed(2):0,o,r,s,s>0?(r/s).toFixed(2):0].join(",")+"\n";}));
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download=nick+"_ads.csv";a.click();
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+const d=loadData();
+if(d){state.data=d;}
+else{const init={PN4:{listings:mkPN4(),daily:{}},PN3:{listings:mkPN3(),daily:{}}};saveData(init);state.data=init;}
+render();
+</script>
+</body>
+</html>
